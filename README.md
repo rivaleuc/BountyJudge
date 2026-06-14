@@ -42,12 +42,6 @@ Judging whether code meets a natural-language spec is interpretation, not comput
 - **GenLayer (Bradbury):** `0x867FC12E89606f7d55d92e5fcE26e1c67D3Af229`
 - **Network:** Bradbury Testnet (chain 4221)
 
-## Test results
-
-Created a bounty: "Build a Node.js CLI tool that fetches top 5 GitHub repos by stars."
-
-Submitted `sindresorhus/gh-contrib` (not a CLI tool) → **All milestones FAILED**. AI correctly identified that the deliverable is an HTML page, not a functional CLI tool. Bounty stayed open, no payout.
-
 ## Structure
 
 - `genlayer/` — Intelligent contract: bounty lifecycle + AI judgment with GitHub fetch
