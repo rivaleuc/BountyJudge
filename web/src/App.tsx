@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster, toast } from 'sonner'
-import { read, write, CONTRACT } from './genlayer'
+import { read, write, CONTRACT, connectWallet, isWalletConnected } from './genlayer'
 
 const SUBMITTER = '0x4531c0303a368eeC4dc8ea165edC6F215aA3e2A9'
 const BOUNTY_KEY = '0'
@@ -75,6 +75,17 @@ export default function App() {
   const [results, setResults] = useState<Record<string, RealVerdict>>({})
   const [phase, setPhase] = useState('')
   const [stats, setStats] = useState<{ total_bounties: number; judgments_made: number } | null>(null)
+  const [wallet, setWallet] = useState<string | null>(null)
+
+  async function handleConnect() {
+    try {
+      const addr = await connectWallet()
+      setWallet(addr)
+      toast.success('Wallet connected', { description: `${addr.slice(0, 6)}…${addr.slice(-4)}` })
+    } catch (e: any) {
+      toast.error('Wallet connection failed', { description: e?.message ?? String(e) })
+    }
+  }
 
   const active = useMemo(() => BOUNTIES.find((b) => b.id === activeId)!, [activeId])
   const activeResult = results[activeId]
@@ -186,6 +197,16 @@ export default function App() {
             <span className="rounded-full bg-[#FBBF24]/10 px-3 py-1 text-[#FBBF24]">
               {BOUNTIES.reduce((a, b) => a + b.reward, 0).toLocaleString()} USDC open
             </span>
+            <button
+              onClick={handleConnect}
+              className={`rounded-full px-3 py-1 font-mono text-[10px] font-bold transition ${
+                wallet
+                  ? 'border border-emerald-500/50 bg-emerald-500/10 text-emerald-400'
+                  : 'bg-[#FBBF24] text-[#111827] hover:bg-[#fcc94a]'
+              }`}
+            >
+              {wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : 'Connect Wallet'}
+            </button>
           </div>
         </div>
       </header>
