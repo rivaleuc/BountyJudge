@@ -4,8 +4,8 @@
 
 BountyJudge replaces the trusted reviewer in a bounty workflow. A poster writes a spec and a milestone list; a worker submits a GitHub URL. GenLayer validators fetch the actual deliverable, compare it to the spec milestone-by-milestone, and reach consensus on a pass/fail verdict that an EVM escrow reads to release funds — no maintainer playing favourites, no off-chain trust.
 
-- **Contract (Bradbury, chain 4221):** `0x867FC12E89606f7d55d92e5fcE26e1c67D3Af229`
-- **Explorer:** https://explorer-bradbury.genlayer.com/contract/0x867FC12E89606f7d55d92e5fcE26e1c67D3Af229
+- **Contract (Bradbury, chain 4221):** `0xaB2a96720ff2ecEA5994d8BA777D93e4a3D19E55`
+- **Explorer:** https://explorer-bradbury.genlayer.com/contract/0xaB2a96720ff2ecEA5994d8BA777D93e4a3D19E55
 - **Live app:** https://bountyjudge.pages.dev
 
 ## What it does

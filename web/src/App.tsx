@@ -448,10 +448,28 @@ export default function App() {
                         </p>
                       </div>
                       <button
-                        onClick={() => toast.success('Payout released', { description: 'USDC routed to contributor.' })}
+                        onClick={async () => {
+                          const tid = toast.loading('Reading payout status from contract…')
+                          try {
+                            const payout: any = await read('read_payout', [BOUNTY_KEY])
+                            if (payout?.payable) {
+                              toast.success('Payout unlocked on-chain', {
+                                id: tid,
+                                description: `Winner ${String(payout.winner).slice(0, 6)}…${String(payout.winner).slice(-4)} — escrow may release for bounty ${payout.bounty_key}.`,
+                              })
+                            } else {
+                              toast.warning('Payout not yet unlocked', {
+                                id: tid,
+                                description: 'Bounty is not marked completed on-chain. All milestones must pass first.',
+                              })
+                            }
+                          } catch (e: any) {
+                            toast.error('Could not read payout', { id: tid, description: e?.message ?? String(e) })
+                          }
+                        }}
                         className="rounded-lg bg-[#FBBF24] px-5 py-2 text-sm font-bold text-[#111827] transition hover:bg-[#fcc94a]"
                       >
-                        Release
+                        Check payout
                       </button>
                     </div>
                   </motion.div>

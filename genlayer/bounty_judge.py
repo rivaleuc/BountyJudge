@@ -6,6 +6,96 @@ MAX_SPEC_CHARS = 3000
 MAX_CODE_CHARS = 5000
 
 
+# ----------------------------------------------------------------------
+# Deterministic verdict logic (module-level, unit-testable, shared by
+# leader_fn and validator_fn). No free-form LLM text comparison.
+# ----------------------------------------------------------------------
+def validate_milestone(m) -> bool:
+    if not isinstance(m, dict):
+        return False
+    name = m.get("name")
+    reason = m.get("reason")
+    passed = m.get("pass")
+    if not isinstance(name, str) or not name.strip():
+        return False
+    if not isinstance(reason, str) or not reason.strip():
+        return False
+    # `pass` is a boolean — reject ints/strings masquerading as bool.
+    if not isinstance(passed, bool):
+        return False
+    return True
+
+
+def derive_overall_pass(milestones, fallback):
+    """When milestones exist, overall_pass is exactly all(m['pass'])."""
+    if milestones:
+        return all(bool(m.get("pass")) for m in milestones)
+    return bool(fallback)
+
+
+def validate_verdict(data) -> bool:
+    if not isinstance(data, dict):
+        return False
+    overall_pass = data.get("overall_pass")
+    if not isinstance(overall_pass, bool):
+        return False
+    score = data.get("score")
+    # score is an int in [0, 100]; reject bool (bool is a subclass of int).
+    if not isinstance(score, int) or isinstance(score, bool):
+        return False
+    if score < 0 or score > 100:
+        return False
+    reasoning = data.get("reasoning")
+    if not isinstance(reasoning, str) or not reasoning.strip():
+        return False
+    milestones = data.get("milestones")
+    if not isinstance(milestones, list):
+        return False
+    for m in milestones:
+        if not validate_milestone(m):
+            return False
+    # Cross-field anchor: when milestones are present, overall_pass MUST equal
+    # the conjunction of every milestone's pass flag.
+    if milestones:
+        if overall_pass != all(bool(m["pass"]) for m in milestones):
+            return False
+    return True
+
+
+def normalize_verdict(raw) -> dict:
+    if not isinstance(raw, dict):
+        raw = {}
+    milestones = []
+    raw_ms = raw.get("milestones")
+    if isinstance(raw_ms, list):
+        for m in raw_ms:
+            if not isinstance(m, dict):
+                continue
+            name = m.get("name")
+            reason = m.get("reason")
+            name = name.strip() if isinstance(name, str) and name.strip() else "milestone"
+            reason = reason.strip() if isinstance(reason, str) and reason.strip() else "no reason provided"
+            milestones.append({"name": name, "pass": bool(m.get("pass")), "reason": reason})
+
+    score = raw.get("score")
+    if not isinstance(score, int) or isinstance(score, bool):
+        score = 0
+    score = max(0, min(100, score))
+
+    reasoning = raw.get("reasoning")
+    if not isinstance(reasoning, str) or not reasoning.strip():
+        reasoning = "no reasoning provided"
+
+    # Leader sets overall_pass = all milestone passes (when milestones exist).
+    overall_pass = derive_overall_pass(milestones, raw.get("overall_pass", False))
+    return {
+        "overall_pass": overall_pass,
+        "score": score,
+        "reasoning": reasoning,
+        "milestones": milestones,
+    }
+
+
 class BountyJudge(gl.Contract):
     owner: str
     bounties: TreeMap[str, str]       # key -> JSON bounty
@@ -168,36 +258,30 @@ DELIVERABLE CODE/README (fetched from GitHub):
 JUDGMENT RULES:
 1. Compare deliverable against EACH requirement in the spec.
 2. If milestones exist, score each one: pass/fail with reason.
-3. Overall pass requires ALL milestones passed (or spec fully met if no milestones).
-4. Be strict but fair. Partial work = fail unless spec allows it.
-5. If code fetch failed, judge based on available notes only (likely fail).
+3. Be strict but fair. Partial work = fail unless spec allows it.
+4. If code fetch failed, judge based on available notes only (likely fail).
 
 Reply ONLY valid JSON:
-{{"overall_pass": true/false, "score": <0-100>, "reasoning": "<summary>", "milestones": [{{"name": "<milestone>", "pass": true/false, "reason": "<why>"}}]}}
+{{"score": <0-100>, "reasoning": "<summary>", "milestones": [{{"name": "<milestone>", "pass": true/false, "reason": "<why>"}}]}}
 No markdown, no code fences."""
 
             raw = gl.nondet.exec_prompt(prompt, response_format="json")
-            if isinstance(raw, dict):
-                return json.dumps(raw)
-            return str(raw).strip()
+            if not isinstance(raw, dict):
+                try:
+                    raw = json.loads(str(raw))
+                except Exception:
+                    raw = {}
+            # Leader derives overall_pass = all milestone passes deterministically.
+            return json.dumps(normalize_verdict(raw))
 
         def validator_fn(leader_result) -> bool:
             if not isinstance(leader_result, gl.vm.Return):
                 return False
             try:
                 data = json.loads(leader_result.calldata)
-                if not isinstance(data.get("overall_pass"), bool):
-                    return False
-                score = data.get("score")
-                if not isinstance(score, int) or score < 0 or score > 100:
-                    return False
-                if not isinstance(data.get("reasoning"), str):
-                    return False
-                if not isinstance(data.get("milestones"), list):
-                    return False
-                return True
             except Exception:
                 return False
+            return validate_verdict(data)
 
         result_str = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
         return json.loads(result_str)

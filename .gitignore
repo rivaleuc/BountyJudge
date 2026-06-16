@@ -7,3 +7,6 @@ contracts/out/
 contracts/cache/
 .env
 .env.local
+.venv/
+__pycache__/
+.pytest_cache/
